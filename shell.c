@@ -3,6 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <signal.h>
+
 
 int exec_process(char *command, char *arguments[]) {
 
@@ -24,37 +26,45 @@ int exec_process(char *command, char *arguments[]) {
 
 int parse_input(char *input, char **args) {
     int i = 0;
-    char *token = strtok(input, " \t\n"); // split on space, tab, newline
+    char *token = strtok(input, " \t\n");
     while (token != NULL) {
         args[i++] = token;
         token = strtok(NULL, " \t\n");
     }
-    args[i] = NULL; // null-terminate for execvp
-    return i;       // number of arguments
+    args[i] = NULL;
+    return i;
 }
 
+
 int main() {
-    char program[128];
+    printf("Welcome to stupid shell(it's very stupid)\n");
     char *args[64];
     char input[128];
+    char pwd[1024];
+    getcwd(pwd, sizeof(pwd));
     while (1) {
-    printf("> ");
+    printf("\x1b[33m%s\x1b[0m@\x1b[32m%s\x1b[0m> ", getlogin(), pwd);
     fgets(input, sizeof(input), stdin);
     parse_input(input, args);
-    
+    if (args[0] == NULL){
+        continue;
+    }
     if (strcmp(args[0], "exit") == 0) {
-        break;
+        return 0;
     } else if (strcmp(args[0], "cd") == 0) {
         if (args[2] != NULL)
         {
             fprintf(stderr, "cd: too many arguments\n");
         } else if (args[1] == NULL) {
             fprintf(stderr, "cd: missing argument\n");
+        } else if(args[1] == "..") {
+            chdir("..");
         } else {
             if (chdir(args[1]) != 0) {
                 perror("cd failed");
             }
             chdir(args[1]);
+            getcwd(pwd, sizeof(pwd));
         }
         
     } else {
