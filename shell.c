@@ -6,6 +6,11 @@
 #include <signal.h>
 
 
+char pwd[1024];
+pid_t pid;
+int process_running = 0;
+
+
 int exec_process(char *command, char *arguments[]) {
 
     pid_t pid = fork();
@@ -14,9 +19,10 @@ int exec_process(char *command, char *arguments[]) {
         perror("exec failed");
         exit(127);
     } else if (pid > 0) {
-        // Parent
+        process_running = 1;
         int status;
         waitpid(pid, &status, 0);
+        process_running = 0;
         return WEXITSTATUS(status);
     } else {
         perror("fork failed");
@@ -35,15 +41,30 @@ int parse_input(char *input, char **args) {
     return i;
 }
 
+void handle_term(int signal){
+    if (process_running == 0){
+    getcwd(pwd, sizeof(pwd));
+    if (strcmp(pwd, getenv("HOME")) != 0)
+    printf("\n\x1b[33m%s\x1b[0m@\x1b[32m%s\x1b[0m$ ", getlogin(), pwd);
+    else
+    printf("\n\x1b[33m%s\x1b[0m@\x1b[32m~\x1b[0m$ ", getlogin());
+    fflush(stdout);
+    }
+}
+
 
 int main() {
+    signal(SIGINT, handle_term);
     printf("Welcome to stupid shell(it's very stupid)\n");
     char *args[64];
     char input[128];
-    char pwd[1024];
+    chdir(getenv("HOME"));
     getcwd(pwd, sizeof(pwd));
     while (1) {
-    printf("\x1b[33m%s\x1b[0m@\x1b[32m%s\x1b[0m> ", getlogin(), pwd);
+    if (strcmp(pwd, getenv("HOME")) != 0)
+    printf("\x1b[33m%s\x1b[0m@\x1b[32m%s\x1b[0m$ ", getlogin(), pwd);
+    else
+    printf("\x1b[33m%s\x1b[0m@\x1b[32m~\x1b[0m$ ", getlogin());
     fgets(input, sizeof(input), stdin);
     parse_input(input, args);
     if (args[0] == NULL){
@@ -56,24 +77,18 @@ int main() {
         {
             fprintf(stderr, "cd: too many arguments\n");
         } else if (args[1] == NULL) {
-            fprintf(stderr, "cd: missing argument\n");
-        } else if(args[1] == "..") {
-            chdir("..");
+            chdir(getenv("HOME"));
+            getcwd(pwd, sizeof(pwd));
         } else {
             if (chdir(args[1]) != 0) {
                 perror("cd failed");
             }
-            chdir(args[1]);
             getcwd(pwd, sizeof(pwd));
         }
-        
+    } else if (strcmp(args[0], "exec") == 0) {
+        execvp(args[1], &args[1]);
     } else {
-        pid_t pid = fork();
-        if (pid == 0) {
-            exec_process(args[0], args);
-        } else {
-            waitpid(pid, NULL, 0);
-        }
+        exec_process(args[0], args);
     }
 }
 
